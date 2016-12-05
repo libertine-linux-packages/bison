@@ -1,0 +1,158 @@
+# This file is part of libertine linux's package bison. It is subject to the licence terms in the COPYRIGHT file found in the top-level directory of this distribution and at https://raw.githubusercontent.com/libertine-linux-packages/libertine/master/COPYRIGHT. No part of libertine linux's package bison, including this file, may be copied, modified, propagated, or distributed except according to the terms contained in the COPYRIGHT file.
+# Copyright © 2016 The developers of libertine linux's package bison. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/libertine-linux-packages/libertine/master/COPYRIGHT.
+
+
+variant=upstream
+
+depends build_ccache
+build_needs ccache
+
+depends build_gnumake
+build_needs make
+
+depends build_slibtool
+build_needs clibtool-static libtoolize realpath
+
+depends build_perl
+build_needs perl
+
+depends build_gnuconfig
+
+depends build_autoconf
+build_needs autoconf autoheader autom4te autoreconf autoscan autoupdate ifnames
+
+depends build_automake
+build_needs automake aclocal
+
+depends build_gnum4
+build_needs m4
+
+depends build_gnulib
+
+depends build_netbsd_src_byacc
+build_needs byacc
+
+depends build_reflex
+build_needs reflex
+
+depends build_netbsd_src_join
+build_needs join # for gnulib-tool
+
+depends build_netbsd_src_patch
+build_needs patch # for gnulib-tool
+
+depends build_busybox
+build_needs expr install sort ls sleep
+build_needs sed grep tr sha1sum rm cmp cp sh env ls mkdir find sort cut dirname # for gnulib bootstrap
+build_needs uniq wc true mktemp date readlink ls sed grep sh rm cp find # for gnulib-tool
+build_needs touch # for gnulib bootstrap.conf
+build_needs tr # for gnulib git-version-gen
+build_needs rmdir # needed for Makefile
+
+build_needs rm mkdir cp sed ln rm cat chmod
+_libertine_compile_bison_internal()
+{
+	local shouldStrip="$1"
+	local destinationSysrootFolderPath="$2"
+	
+	pushd "$(libertine_public_sourcePath)"
+		
+		libertine_public_autoconf_replaceWithKnownVersionOfGnulib "$(libertine_public_sourcePath)"/gnulib
+		libertine_public_autoconf_replaceWithKnownVersionOfBootstrap "$(libertine_public_sourcePath)"
+		
+		# Need to replace autoconf with our known version...
+		rm -rf submodules/autoconf
+		mkdir -m 0755 -p submodules/autoconf
+		cp -a "$(libertine_public_packagePath build_autoconf)"/autoconf-2.69-or-later-compatible/. submodules/autoconf/
+		libertine_public_autoconf_replaceWithKnownVersionOfConfigSub submodules/autoconf/build-aux
+		libertine_public_autoconf_replaceWithKnownVersionOfConfigGuess submodules/autoconf/build-aux
+		
+		# Get rid of Gettext (po), doc, useless cruft and BISON_I18N (which needs Gettext)
+		rm -rf po doc
+		sed -i \
+			-e '/AM_GNU_GETTEXT/d' \
+			-e '/BISON_I18N/d' \
+			-e '/po\/Makefile.in/d' \
+			-e 's;doc/yacc.1;;g' \
+			configure.ac
+		sed -i \
+			-e 's;SUBDIRS = po runtime-po ;SUBDIRS = ;g' \
+			-e '/include doc\/local.mk/d' \
+			-e '/include tests\/local.mk/d' \
+			Makefile.am
+		printf '' >examples/local.mk
+		#printf '' >djgpp/local.mk
+		
+		# Fake version; bison's gnulib code of git-version-gen is broken for git submodules
+		printf '3.0.4\n' > .tarball-version
+		
+		# Make reflex act as flex
+		ln -s reflex "$(libertine_public_PATH)"/flex
+		
+		# PATH_SEPARATOR: Prevents gnulib-tool from checking for sh at /bin
+		# CONFIG_SHELL: When re-execing, specifies the shell to use
+		PATH_SEPARATOR=: CONFIG_SHELL="$(libertine_public_PATH)"/sh ./bootstrap --gnulib-srcdir=./gnulib --no-bootstrap-sync --copy --force --no-git --skip-po
+		
+		#autoreconf -f -i -v
+		
+		libertine_public_autoconf_modernAutoconfConfigure
+		
+		libertine_public_make --debug --trace
+		
+		libertine_public_make install
+		
+		local yaccBinaryFilePath="$destinationSysrootFolderPath"/usr/bin/yacc
+
+		local envShaBang
+		if $shouldStrip; then
+			envShaBang='/usr/bin/env'
+		else
+			envShaBang="$(libertine_public_PATH)"/env
+		fi
+		
+		rm -rf "$yaccBinaryFilePath"
+		{
+			printf '#!%s sh\n' "$envShaBang"
+			printf 'exec bison -y "$@"\n'
+		} >"$yaccBinaryFilePath"
+		chmod +x "$yaccBinaryFilePath"
+	
+	popd
+	
+	if $shouldStrip; then
+		libertine_public_installAndStripBinariesIn bin bison
+		cp "$yaccBinaryFilePath" "$(libertine_public_outputInitramfsPath)"/usr/bin
+	fi
+}
+
+case "$package" in
+	
+	build_bison)
+		
+		build_provides bison yacc
+		
+		build_needs env sh # needed for our built yacc
+
+		depends build_musl_cross_make_build
+		build_needs "$libertine_build"-cc "$libertine_build"-gcc "$libertine_build"-ar "$libertine_build"-ld "$libertine_build"-ranlib
+		
+		libertine_compile_build_bison()
+		{
+			_libertine_compile_bison_internal false "$(libertine_public_outputBuildSysrootPath)"
+		}
+		
+	;;
+	
+	bison)
+
+		depends build_musl_cross_make_host
+		build_needs "$libertine_host"-cc "$libertine_host"-gcc "$libertine_host"-ar "$libertine_host"-ld "$libertine_host"-ranlib "$libertine_host"-strip
+		
+		libertine_compile_bison()
+		{
+			_libertine_compile_bison_internal true "$(libertine_public_outputHostSysrootPath)"
+		}
+		
+	;;
+	
+esac
