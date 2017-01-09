@@ -87,11 +87,11 @@ _libertine_compile_bison_internal()
 		printf '3.0.4\n' > .tarball-version
 		
 		# Make reflex act as flex
-		ln -s reflex "$(libertine_public_PATH)"/flex
+		ln -s reflex "$(libertine_public_buildNeedsPath)"/flex
 		
 		# PATH_SEPARATOR: Prevents gnulib-tool from checking for sh at /bin
 		# CONFIG_SHELL: When re-execing, specifies the shell to use
-		PATH_SEPARATOR=: CONFIG_SHELL="$(libertine_public_PATH)"/sh ./bootstrap --gnulib-srcdir=./gnulib --no-bootstrap-sync --copy --force --no-git --skip-po
+		PATH_SEPARATOR=: CONFIG_SHELL="$(libertine_public_buildNeedsPath)"/sh ./bootstrap --gnulib-srcdir=./gnulib --no-bootstrap-sync --copy --force --no-git --skip-po
 		
 		#autoreconf -f -i -v
 		
@@ -107,7 +107,7 @@ _libertine_compile_bison_internal()
 		if $shouldStrip; then
 			envShaBang='/usr/bin/env'
 		else
-			envShaBang="$(libertine_public_PATH)"/env
+			envShaBang="$(libertine_public_buildNeedsPath)"/env
 		fi
 		
 		rm -rf "$yaccBinaryFilePath"
