@@ -120,7 +120,7 @@ _libertine_compile_bison_internal()
 	popd
 	
 	if $shouldStrip; then
-		libertine_public_installAndStripBinariesIn bin bison
+		libertine_public_installAndStripBinaryIn bin bison
 		cp "$yaccBinaryFilePath" "$(libertine_public_outputInitramfsPath)"/usr/bin
 	fi
 }
@@ -147,6 +147,9 @@ case "$package" in
 
 		depends build_musl_cross_make_host
 		build_needs "$libertine_host"-cc "$libertine_host"-gcc "$libertine_host"-ar "$libertine_host"-ld "$libertine_host"-ranlib "$libertine_host"-strip
+		
+		depends build_paxctl
+		build_needs paxctl
 		
 		libertine_compile_bison()
 		{
