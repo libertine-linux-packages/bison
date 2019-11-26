@@ -16,8 +16,6 @@ build_needs clibtool-static libtoolize realpath
 depends build_perl
 build_needs perl
 
-depends build_gnuconfig
-
 depends build_autoconf
 build_needs autoconf autoheader autom4te autoreconf autoscan autoupdate ifnames
 
@@ -27,7 +25,7 @@ build_needs automake aclocal
 depends build_gnum4
 build_needs m4
 
-depends build_gnulib
+depends build_automake
 
 depends build_netbsd_src_byacc
 build_needs byacc
@@ -46,7 +44,7 @@ depends build_netbsd_src_sleep
 build_needs expr install sort ls sleep
 build_needs sed grep tr sha1sum rm cmp cp sh env ls mkdir find sort cut dirname # for gnulib bootstrap
 build_needs uniq wc true mktemp date readlink ls sed grep sh rm cp find # for gnulib-tool
-build_needs touch # for gnulib bootstrap.conf
+build_needs md5sum touch # for gnulib bootstrap.conf
 build_needs tr # for gnulib git-version-gen
 build_needs rmdir # needed for Makefile
 
@@ -58,8 +56,8 @@ _libertine_compile_bison_internal()
 	
 	pushd "$(libertine_public_sourcePath)"
 		
-		libertine_public_autoconf_replaceWithKnownVersionOfGnulib "$(libertine_public_sourcePath)"/gnulib
-		libertine_public_autoconf_replaceWithKnownVersionOfBootstrap "$(libertine_public_sourcePath)"
+		libertine_public_autoconf_adjustGnulib "$(libertine_public_sourcePath)"/gnulib
+		libertine_public_autoconf_adjustGnulibBootstrap "$(libertine_public_sourcePath)"
 		
 		# Need to replace autoconf with our known version...
 		rm -rf submodules/autoconf
@@ -68,8 +66,7 @@ _libertine_compile_bison_internal()
 		libertine_public_autoconf_replaceWithKnownVersionOfConfigSub submodules/autoconf/build-aux
 		libertine_public_autoconf_replaceWithKnownVersionOfConfigGuess submodules/autoconf/build-aux
 		
-		# Get rid of Gettext (po), doc, useless cruft and BISON_I18N (which needs Gettext)
-		rm -rf po doc
+		rm -rf po runtime-po gnulib-po
 		sed -i \
 			-e '/AM_GNU_GETTEXT/d' \
 			-e '/BISON_I18N/d' \
@@ -77,24 +74,25 @@ _libertine_compile_bison_internal()
 			-e 's;doc/yacc.1;;g' \
 			configure.ac
 		sed -i \
-			-e 's;SUBDIRS = po runtime-po ;SUBDIRS = ;g' \
+			-e 's;SUBDIRS = po runtime-po gnulib-po .;SUBDIRS = .;g' \
 			-e '/include doc\/local.mk/d' \
 			-e '/include tests\/local.mk/d' \
 			Makefile.am
 		printf '' >examples/local.mk
-		#printf '' >djgpp/local.mk
 		
 		# Fake version; bison's gnulib code of git-version-gen is broken for git submodules
-		printf '3.0.4\n' > .tarball-version
+		printf '3.4.91\n' > .tarball-version
 		
 		# Make reflex act as flex
 		ln -s reflex "$(libertine_public_buildNeedsPath)"/flex
-		
+
+		# ACLOCAL_FLAGS: Force additional debugging of programs called by bootstrap.
 		# PATH_SEPARATOR: Prevents gnulib-tool from checking for sh at /bin
 		# CONFIG_SHELL: When re-execing, specifies the shell to use
-		PATH_SEPARATOR=: CONFIG_SHELL="$(libertine_public_buildNeedsPath)"/sh ./bootstrap --gnulib-srcdir=./gnulib --no-bootstrap-sync --copy --force --no-git --skip-po
-		
-		#autoreconf -f -i -v
+		ACLOCAL_FLAGS='--verbose --debug' PATH_SEPARATOR=: CONFIG_SHELL="$(libertine_public_buildNeedsPath)"/sh sh -x ./bootstrap \
+			--gnulib-srcdir="$(pwd)"/gnulib \
+			--no-bootstrap-sync \
+			--copy --force --no-git --skip-po
 		
 		libertine_public_autoconf_modernAutoconfConfigure
 		
